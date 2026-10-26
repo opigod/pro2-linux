@@ -34,7 +34,7 @@ full GUI can be built on top without redoing the protocol work.
    pages, if you can capture G HUB traffic.
 3. **New GTK4 app** in Python or Rust using the HID++ layer documented in
    `docs/protocol.md`. The Python tools here are a working reference.
-4. **Tauri/Electron** front end over a small Rust/Python daemon. Suitable if
+4. **Native** front end over a small Rust daemon. Suitable if
    you want a modern UI and per-app profiles.
 
 ## Features worth designing first
