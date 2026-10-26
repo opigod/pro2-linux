@@ -1,5 +1,7 @@
 # Logitech PRO 2 LIGHTSPEED on Linux
 
+[![CI](https://github.com/opigod/pro2-linux/actions/workflows/ci.yml/badge.svg)](https://github.com/opigod/pro2-linux/actions/workflows/ci.yml)
+
 Linux support for the **Logitech G PRO 2 LIGHTSPEED** (`G PRO 2 LIGHTSPEED`,
 wired `046d:c09a`, Lightspeed receiver `046d:c543`) — not the Superlight 2.
 
