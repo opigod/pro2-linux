@@ -1,5 +1,20 @@
 # Logitech PRO 2 LIGHTSPEED on Linux
 
+> [!CAUTION]
+> **AI-GENERATED, EXPERIMENTAL CODE — USE AT YOUR OWN RISK.**
+>
+> This repository was written largely by an AI coding agent under human
+> direction. It has **not** been independently audited by a human, and it may
+> contain mistakes, unsafe assumptions, incomplete edge cases, protocol
+> misunderstandings, or destructive bugs that a human reviewer would catch.
+>
+> It writes persistent data to the mouse’s onboard flash, switches HID++
+> modes, and can leave buttons muted or profiles corrupted. Back up your
+> profiles before testing. Do not use it unattended, in production, or on
+> hardware you cannot recover. There is **no warranty** of any kind.
+>
+> Read the full [`DISCLAIMER.md`](DISCLAIMER.md) before running anything.
+
 [![CI](https://github.com/opigod/pro2-linux/actions/workflows/ci.yml/badge.svg)](https://github.com/opigod/pro2-linux/actions/workflows/ci.yml)
 
 Linux support for the **Logitech G PRO 2 LIGHTSPEED** (`G PRO 2 LIGHTSPEED`,
