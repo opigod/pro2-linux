@@ -1,0 +1,26 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Python syntax
+        run: python3 -m py_compile tools/pro2_profile.py tools/pro2_light.py tools/pro2_remap.py
+      - name: Shell syntax
+        run: |
+          bash -n scripts/build-libratbag.sh
+          bash -n scripts/build-piper.sh
+          bash -n scripts/install-udev.sh
+          bash -n scripts/pro2ctl
+          bash -n scripts/pro2-piper
+          bash -n scripts/pro2-special
+      - name: JSON config
+        run: python3 -m json.tool config/pro2-remap.json >/dev/null

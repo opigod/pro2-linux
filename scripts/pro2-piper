@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+#
+# Launch the locally built Piper against the patched ratbagd.
+#
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+PIPER="$ROOT/.build/piper-install"
+
+if [ ! -x "$PIPER/bin/piper" ]; then
+    echo "Piper is not built; run: make setup" >&2
+    exit 1
+fi
+
+SITE="$(find "$PIPER/lib" -maxdepth 3 -type d -name site-packages 2>/dev/null | head -1 || true)"
+if [ -z "$SITE" ]; then
+    echo "Piper Python package directory not found under $PIPER/lib" >&2
+    exit 1
+fi
+
+export PYTHONPATH="$SITE${PYTHONPATH:+:$PYTHONPATH}"
+export DBUS_SYSTEM_BUS_ADDRESS="${DBUS_SYSTEM_BUS_ADDRESS:-${DBUS_SESSION_BUS_ADDRESS:-unix:path=/run/user/$(id -u)/bus}}"
+
+out="$("$ROOT/scripts/pro2ctl" list 2>&1)"
+if [[ "$out" == *"No devices available"* ]]; then
+    echo "Piper cannot see the PRO 2 because ratbagd cannot open its hidraw node." >&2
+    echo "Run: sudo $ROOT/scripts/install-udev.sh" >&2
+    exit 1
+fi
+
+exec "$PIPER/bin/piper" "$@"

@@ -1,0 +1,70 @@
+name: Bug report
+description: Report a problem with the PRO 2 LIGHTSPEED on Linux
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for testing. Please do not paste a full `lsusb -v` dump.
+  - type: input
+    id: model
+    attributes:
+      label: Mouse model / colour
+      placeholder: "G PRO 2 LIGHTSPEED, black"
+    validations:
+      required: true
+  - type: dropdown
+    id: connection
+    attributes:
+      label: Connection
+      options:
+        - Wired (046d:c09a)
+        - Lightspeed receiver (046d:c543)
+        - Other / not sure
+    validations:
+      required: true
+  - type: input
+    id: distro
+    attributes:
+      label: Distribution / kernel
+      placeholder: "CachyOS, 7.3.0"
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: What happened?
+      description: Include exact steps and which tool/UI was used.
+    validations:
+      required: true
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Diagnostics
+      description: Paste the output of the commands below.
+      value: |
+        ```
+        $ lsusb -d 046d:
+        $ ./scripts/pro2ctl list
+        $ python3 tools/pro2_profile.py show
+        ```
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: Daemon logs, dmesg lines, Piper/libratbag version.
+      render: shell
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checks
+      options:
+        - label: I ran `make setup` and am not using the distro libratbag/Piper.
+          required: true
+        - label: I stopped Solaar/OpenLogi/Piper before testing.
+          required: true
+        - label: I backed up my onboard profiles before writing.
+          required: false

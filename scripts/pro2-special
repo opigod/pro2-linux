@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+#
+# Run the host-mode remapper for double-click, macros and held keys.
+#
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+"$ROOT/scripts/pro2ctl" stop 2>/dev/null || true
+exec python3 "$ROOT/tools/pro2_remap.py" "${1:-$ROOT/config/pro2-remap.json}"

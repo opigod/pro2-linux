@@ -1,0 +1,181 @@
+diff --git a/meson.build b/meson.build
+index 73771e5..1c56453 100644
+--- a/meson.build
++++ b/meson.build
+@@ -577,8 +577,10 @@ test(
+   env : env_test,
+ )
+ 
+-# ratbag-command uses Swig bindings to call libratbag directly
+-swig = find_program('swig')
++# ratbag-command uses Swig bindings to call libratbag directly.
++# It is an optional developer tool; ratbagd and ratbagctl do not need swig.
++swig = find_program('swig', required: false)
++if swig.found()
+ swig_gen = generator(
+     swig,
+     output: ['@BASENAME@.c'],
+@@ -644,6 +646,7 @@ custom_target('ratbag-command',
+ 				'@INPUT@',
+ 				'--output', '@OUTPUT@'],
+   install: false)
++endif
+ 
+ #### output files ####
+ configure_file(output: 'config.h', install: false, configuration: config_h)
+diff --git a/src/driver-hidpp20.c b/src/driver-hidpp20.c
+index 4f6b284..9b3e090 100644
+--- a/src/driver-hidpp20.c
++++ b/src/driver-hidpp20.c
+@@ -737,6 +737,31 @@ hidpp20drv_update_led_8070_8071(struct ratbag_led *led, struct ratbag_profile* p
+ 	h_led->period = led->ms;
+ 	h_led->brightness = led->brightness * 100 / 255;
+ 
++	/*
++	 * 0x8071 has a live effect engine.  Writing only the onboard profile
++	 * leaves the old colour on the LEDs until the profile is reloaded, which
++	 * is what made Piper's colour picker appear to do nothing.  Claim the
++	 * clusters, apply the static effect with volatile persistence, then hand
++	 * control back so the updated profile remains the persistent source.
++	 */
++	if (drv_data->capabilities & HIDPP_CAP_RGB_EFFECTS_8071 &&
++	    led->mode == RATBAG_LED_ON) {
++		uint8_t params[10] = {
++			led->color.red, led->color.green, led->color.blue,
++		};
++		int rc = hidpp20_rgb_effects_set_sw_control(drv_data->dev, 0x01, 0x00);
++		if (rc == 0)
++			rc = hidpp20_rgb_effects_set_cluster_effect(drv_data->dev,
++								    0x00, 0x01,
++								    params, 0x01, 0x00);
++		if (rc == 0)
++			rc = hidpp20_rgb_effects_set_sw_control(drv_data->dev, 0x00, 0x00);
++		if (rc)
++			log_error(led->profile->device->ratbag,
++				  "Failed to apply live RGB effect: '%s' (%d)\n",
++				  strerror(-rc), rc);
++	}
++
+ 	if (!(drv_data->capabilities & HIDPP_CAP_ONBOARD_PROFILES_8100)) {
+ 		if (drv_data->capabilities & HIDPP_CAP_COLOR_LED_EFFECTS_8070)
+ 			hidpp20_color_led_effects_set_zone_effect(drv_data->dev,
+@@ -1972,6 +1997,17 @@ hidpp20drv_commit(struct ratbag_device *device)
+ 
+ 		list_for_each(profile, &device->profiles, link) {
+ 			if (profile->is_active) {
++				/*
++				 * Re-select the just-written profile.  Some GPX2/BHOP
++				 * firmware keeps the old button map in RAM after a flash
++				 * write; re-selecting the same profile makes it reload.
++				 */
++				rc = hidpp20_onboard_profiles_set_current_profile(drv_data->dev,
++										  profile->index);
++				if (rc)
++					log_debug(device->ratbag,
++						  "hidpp20: failed to reselect profile (%d)\n", rc);
++
+ 				ratbag_profile_for_each_resolution(profile, resolution) {
+ 					if (resolution->is_active)
+ 						hidpp20_onboard_profiles_set_current_dpi_index(drv_data->dev,
+diff --git a/src/hidpp20.c b/src/hidpp20.c
+index 7064507..d1b5acb 100644
+--- a/src/hidpp20.c
++++ b/src/hidpp20.c
+@@ -1264,6 +1264,57 @@ hidpp20_rgb_effects_get_effect_info(struct hidpp20_device *device,
+ 	return 0;
+ }
+ 
++int
++hidpp20_rgb_effects_set_sw_control(struct hidpp20_device *device,
++				   uint8_t control,
++				   uint8_t events)
++{
++	union hidpp20_message msg = {
++		.msg.report_id = REPORT_ID_SHORT,
++		.msg.device_idx = device->index,
++		.msg.address = CMD_RGB_EFFECTS_MANAGE_SW_CONTROL,
++		.msg.parameters[0] = 0x01,
++		.msg.parameters[1] = control,
++		.msg.parameters[2] = events,
++	};
++	uint8_t feature_index;
++
++	feature_index = hidpp_root_get_feature_idx(device, HIDPP_PAGE_RGB_EFFECTS);
++	if (feature_index == 0)
++		return -ENOTSUP;
++
++	msg.msg.sub_id = feature_index;
++	return hidpp20_request_command(device, &msg);
++}
++
++int
++hidpp20_rgb_effects_set_cluster_effect(struct hidpp20_device *device,
++				       uint8_t cluster_index,
++				       uint8_t effect_index,
++				       const uint8_t params[10],
++				       uint8_t persistence,
++				       uint8_t power_mode)
++{
++	union hidpp20_message msg = {
++		.msg.report_id = REPORT_ID_LONG,
++		.msg.device_idx = device->index,
++		.msg.address = CMD_RGB_EFFECTS_SET_RGB_CLUSTER_EFFECT,
++		.msg.parameters[0] = cluster_index,
++		.msg.parameters[1] = effect_index,
++	};
++	uint8_t feature_index;
++
++	memcpy(&msg.msg.parameters[2], params, 10);
++	msg.msg.parameters[12] = (persistence & 0x03) | ((power_mode & 0x03) << 2);
++
++	feature_index = hidpp_root_get_feature_idx(device, HIDPP_PAGE_RGB_EFFECTS);
++	if (feature_index == 0)
++		return -ENOTSUP;
++
++	msg.msg.sub_id = feature_index;
++	return hidpp20_request_command(device, &msg);
++}
++
+ /* -------------------------------------------------------------------------- */
+ /* 0x1b04: Special keys and mouse buttons                                     */
+ /* -------------------------------------------------------------------------- */
+@@ -3638,7 +3689,14 @@ hidpp20_onboard_profiles_write_profile_ext(struct hidpp20_device *device,
+ 	data = hidpp20_onboard_profiles_allocate_sector(profiles_list);
+ 	pdata = (union hidpp20_internal_profile_ext *)data;
+ 
+-	memset(data, 0xff, profiles_list->sector_size);
++	/*
++	 * Preserve the fields this driver does not model: the alternate/G-Shift
++	 * button layer, extra LEDs, macro references and reserved bytes.  The
++	 * old code started from 0xff and silently wiped them on every commit.
++	 */
++	rc = hidpp20_onboard_profiles_read_sector(device, sector, sector_size, data);
++	if (rc < 0)
++		memset(data, 0xff, profiles_list->sector_size);
+ 
+ 	pdata->profile.report_rate = profile->report_rate;
+ 	pdata->profile.report_rate_wireless = profile->report_rate_wireless;
+diff --git a/src/hidpp20.h b/src/hidpp20.h
+index 87eaee8..8ba5d46 100644
+--- a/src/hidpp20.h
++++ b/src/hidpp20.h
+@@ -579,6 +579,19 @@ hidpp20_rgb_effects_get_effect_info(struct hidpp20_device *device,
+ 				    uint8_t effect_index,
+ 				    struct hidpp20_rgb_effect_info *info);
+ 
++int
++hidpp20_rgb_effects_set_sw_control(struct hidpp20_device *device,
++				   uint8_t control,
++				   uint8_t events);
++
++int
++hidpp20_rgb_effects_set_cluster_effect(struct hidpp20_device *device,
++				       uint8_t cluster_index,
++				       uint8_t effect_index,
++				       const uint8_t params[10],
++				       uint8_t persistence,
++				       uint8_t power_mode);
++
+ struct hidpp20_led;
+ 
+ int

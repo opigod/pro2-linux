@@ -1,0 +1,17 @@
+{
+  "buttons": {
+    "7": {
+      "type": "double_click"
+    },
+    "8": {
+      "type": "macro",
+      "steps": [
+        "+KEY_LEFTCTRL",
+        "+KEY_C",
+        "t50",
+        "-KEY_C",
+        "-KEY_LEFTCTRL"
+      ]
+    }
+  }
+}

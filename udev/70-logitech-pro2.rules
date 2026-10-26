@@ -1,0 +1,7 @@
+# Logitech PRO 2 LIGHTSPEED: allow the active seat user to open the HID++
+# hidraw nodes used by libratbag/Piper, Solaar and OpenLogi.
+#
+# Wired mouse:   046d:c09a
+# LS receiver:  046d:c543
+SUBSYSTEM=="hidraw", ATTRS{idVendor}=="046d", ATTRS{idProduct}=="c09a", MODE="0660", TAG+="uaccess"
+SUBSYSTEM=="hidraw", ATTRS{idVendor}=="046d", ATTRS{idProduct}=="c543", MODE="0660", TAG+="uaccess"

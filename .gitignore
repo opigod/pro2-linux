@@ -1,0 +1,8 @@
+.build/
+.run/
+__pycache__/
+*.pyc
+*.pyo
+*.bin
+*.log
+pro2-backup-*/

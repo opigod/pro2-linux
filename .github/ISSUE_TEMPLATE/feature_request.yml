@@ -1,0 +1,39 @@
+name: Feature request
+description: Suggest a feature or a GUI direction
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem should this solve?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: Describe the UX, protocol path, or upstream project.
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - GUI / UX
+        - DPI / report rate
+        - Buttons / macros
+        - RGB
+        - Profiles / per-app switching
+        - Packaging / autostart
+        - Protocol reverse engineering
+        - Upstream libratbag/Piper
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: hardware
+    attributes:
+      label: Hardware you can test on
+      description: Model, wired/receiver, firmware, distro.

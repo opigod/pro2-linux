@@ -1,0 +1,106 @@
+#!/usr/bin/env bash
+#
+# Run the locally built, patched libratbag ratbagctl against the PRO 2.
+#
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+BUILD="$ROOT/.build"
+RATBAG="$BUILD/libratbag"
+RATBAGD="$RATBAG/build/ratbagd"
+RATBAGCTL="$RATBAG/build/ratbagctl"
+RUN="$ROOT/.run"
+PIDFILE="$RUN/ratbagd.pid"
+LOGFILE="$RUN/ratbagd.log"
+
+if [ ! -x "$RATBAGD" ] || [ ! -x "$RATBAGCTL" ]; then
+    echo "patched libratbag is not built; run: make setup" >&2
+    exit 1
+fi
+
+mkdir -p "$RUN"
+export LIBRATBAG_DATA_DIR="$RATBAG/data/devices"
+export DBUS_SYSTEM_BUS_ADDRESS="${DBUS_SYSTEM_BUS_ADDRESS:-${DBUS_SESSION_BUS_ADDRESS:-unix:path=/run/user/$(id -u)/bus}}"
+
+daemon_up() {
+    local out
+    out="$("$RATBAGCTL" list 2>&1)" || return 1
+    [[ "$out" != *"Unable to connect"* ]]
+}
+
+start_daemon() {
+    if daemon_up; then
+        return 0
+    fi
+    if [ -f "$PIDFILE" ]; then
+        oldpid="$(cat "$PIDFILE" 2>/dev/null || true)"
+        if [ -n "${oldpid:-}" ] && kill -0 "$oldpid" 2>/dev/null; then
+            return 0
+        fi
+    fi
+    nohup "$RATBAGD" >"$LOGFILE" 2>&1 &
+    echo $! >"$PIDFILE"
+    for _ in $(seq 1 50); do
+        if daemon_up; then
+            return 0
+        fi
+        sleep 0.1
+    done
+    echo "pro2ctl: ratbagd did not come up; see $LOGFILE" >&2
+    tail -20 "$LOGFILE" >&2 || true
+    return 1
+}
+
+stop_daemon() {
+    if [ -f "$PIDFILE" ]; then
+        kill "$(cat "$PIDFILE")" 2>/dev/null || true
+        rm -f "$PIDFILE"
+    fi
+    pkill -f "$RATBAGD" 2>/dev/null || true
+}
+
+hint_permissions() {
+    if grep -q "Permission denied" "$LOGFILE" 2>/dev/null; then
+        echo >&2
+        echo "The hidraw node is not accessible to your user. Install the udev rule:" >&2
+        echo "  sudo $ROOT/scripts/install-udev.sh" >&2
+    fi
+}
+
+case "${1:-}" in
+    stop)
+        stop_daemon
+        exit 0
+        ;;
+    restart)
+        stop_daemon
+        sleep 0.3
+        start_daemon
+        exec "$RATBAGCTL" list
+        ;;
+    list)
+        start_daemon
+        out="$("$RATBAGCTL" list 2>&1)" || status=$?
+        printf '%s\n' "$out"
+        if [[ "$out" == *"No devices available"* ]]; then
+            status=1
+            hint_permissions
+        fi
+        exit "${status:-0}"
+        ;;
+    "")
+        echo "usage: $0 {list|info|dpi ...|profile ...|button ...|rate ...|stop|restart}" >&2
+        exit 2
+        ;;
+esac
+
+start_daemon
+name="$("$RATBAGCTL" list | awk -F: '/PRO 2/ {gsub(/^[ \t]+|[ \t]+$/, "", $1); print $1; exit}')"
+if [ -z "${name:-}" ]; then
+    echo "pro2ctl: PRO 2 LIGHTSPEED not found. Current devices:" >&2
+    "$RATBAGCTL" list >&2
+    hint_permissions
+    exit 1
+fi
+
+exec "$RATBAGCTL" "$name" "$@"
